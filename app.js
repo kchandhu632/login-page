@@ -1,6 +1,6 @@
 /**
  * Aura — Minimalistic Authentication Web Application
- * Modular client-side interaction and authentication logic
+ * Live Firebase Authentication & Realtime Database Integration
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,8 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const themeToggle = document.getElementById('themeToggle');
 
   const authCard = document.getElementById('authCard');
-  const dashboardCard = document.getElementById('dashboardCard');
-
   const formTitle = document.getElementById('formTitle');
   const formSubtitle = document.getElementById('formSubtitle');
   const footerText = document.getElementById('footerText');
@@ -26,13 +24,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const signInSubmitBtn = document.getElementById('signInSubmitBtn');
   const signUpSubmitBtn = document.getElementById('signUpSubmitBtn');
 
-  // Sign in fields
+  // Sign In fields
   const signInEmail = document.getElementById('signInEmail');
   const signInPassword = document.getElementById('signInPassword');
   const signInEmailError = document.getElementById('signInEmailError');
   const signInPasswordError = document.getElementById('signInPasswordError');
 
-  // Sign up fields
+  // Sign Up fields
   const signUpName = document.getElementById('signUpName');
   const signUpEmail = document.getElementById('signUpEmail');
   const signUpPassword = document.getElementById('signUpPassword');
@@ -54,12 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
   const strengthLabel = document.getElementById('strengthLabel');
 
-  // Dashboard
-  const dashboardUserName = document.getElementById('dashboardUserName');
-  const dashboardUserEmail = document.getElementById('dashboardUserEmail');
-  const dashboardAvatar = document.getElementById('dashboardAvatar');
-  const sessionTimestamp = document.getElementById('sessionTimestamp');
-  const signOutBtn = document.getElementById('signOutBtn');
+  // Social Buttons
+  const googleLoginBtn = document.getElementById('googleLoginBtn');
+  const githubLoginBtn = document.getElementById('githubLoginBtn');
+  const appleLoginBtn = document.getElementById('appleLoginBtn');
 
   // Forgot Password Modal
   const forgotPasswordLink = document.getElementById('forgotPasswordLink');
@@ -71,16 +67,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetEmailError = document.getElementById('resetEmailError');
   const submitResetBtn = document.getElementById('submitResetBtn');
 
-  // Social Buttons
-  const socialButtons = document.querySelectorAll('.btn-social');
-
   // Toast Container
   const toastContainer = document.getElementById('toastContainer');
 
-  let currentMode = 'signin'; // 'signin' | 'signup'
+  let currentMode = 'signin';
 
   // =========================================================================
-  // Theme Management (Light / Dark Mode)
+  // Theme Management
   // =========================================================================
   const initializeTheme = () => {
     const savedTheme = localStorage.getItem('aura_theme');
@@ -104,7 +97,19 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeTheme();
 
   // =========================================================================
-  // Tab & Mode Switching
+  // Active Auth Check (Redirect to Dashboard if already logged in)
+  // =========================================================================
+  if (auth) {
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        // User is already authenticated -> redirect directly to dashboard
+        window.location.replace('dashboard.html');
+      }
+    });
+  }
+
+  // =========================================================================
+  // Tab Switching
   // =========================================================================
   const setMode = (mode) => {
     currentMode = mode;
@@ -172,12 +177,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
-  // Password Strength Evaluation
+  // Password Strength Meter
   // =========================================================================
   const evaluatePasswordStrength = (pass) => {
-    if (!pass) {
-      return { score: 0, text: 'Enter a password', class: '' };
-    }
+    if (!pass) return { score: 0, text: 'Enter a password', class: '' };
 
     let score = 0;
     if (pass.length >= 8) score++;
@@ -185,9 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/\d/.test(pass)) score++;
     if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pass)) score++;
 
-    if (pass.length < 6) {
-      score = Math.min(score, 1);
-    }
+    if (pass.length < 6) score = Math.min(score, 1);
 
     switch (score) {
       case 1:
@@ -208,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const result = evaluatePasswordStrength(val);
 
     strengthLabel.textContent = result.text;
-
     strengthBars.forEach((bar, index) => {
       bar.className = 'strength-bar';
       if (val.length > 0 && index < result.score) {
@@ -220,20 +220,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // Validation Helpers
   // =========================================================================
-  const isValidEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const showError = (inputElement, errorElement, message) => {
     inputElement.classList.add('input-error');
     errorElement.textContent = message;
     errorElement.classList.add('visible');
-  };
-
-  const hideError = (inputElement, errorElement) => {
-    inputElement.classList.remove('input-error');
-    errorElement.textContent = '';
-    errorElement.classList.remove('visible');
   };
 
   const clearErrors = () => {
@@ -244,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // Real-time error clearing on input
   [signInEmail, signInPassword, signUpName, signUpEmail, signUpPassword, signUpConfirmPassword, resetEmail].forEach((input) => {
     if (input) {
       input.addEventListener('input', () => {
@@ -260,15 +251,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const triggerShake = (element) => {
     element.classList.remove('shake-error');
-    void element.offsetWidth; // Force DOM reflow
+    void element.offsetWidth;
     element.classList.add('shake-error');
-    setTimeout(() => {
-      element.classList.remove('shake-error');
-    }, 400);
+    setTimeout(() => element.classList.remove('shake-error'), 400);
+  };
+
+  // Convert Firebase error codes into friendly human-readable explanations
+  const parseFirebaseError = (errorCode, defaultMessage) => {
+    switch (errorCode) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Invalid email or password. Please verify your credentials.';
+      case 'auth/email-already-in-use':
+        return 'An account already exists with this email address.';
+      case 'auth/weak-password':
+        return 'The password is too weak. Please use at least 6-8 characters.';
+      case 'auth/invalid-email':
+        return 'The email address format is not valid.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      case 'auth/too-many-requests':
+        return 'Too many unsuccessful attempts. Please try again later.';
+      case 'auth/operation-not-allowed':
+        return 'Email/Password sign-in is not enabled in your Firebase Console.';
+      case 'auth/popup-closed-by-user':
+        return 'The sign-in popup was closed before completing.';
+      case 'auth/popup-blocked':
+        return 'Popup blocked by browser. Please allow popups for authentication.';
+      default:
+        return defaultMessage || 'Authentication failed. Please try again.';
+    }
   };
 
   // =========================================================================
-  // Sign In Form Submission
+  // Live Firebase Sign In
   // =========================================================================
   signInForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -289,9 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!passVal) {
       showError(signInPassword, signInPasswordError, 'Password is required');
       valid = false;
-    } else if (passVal.length < 6) {
-      showError(signInPassword, signInPasswordError, 'Password must be at least 6 characters');
-      valid = false;
     }
 
     if (!valid) {
@@ -299,25 +313,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Simulate async network request
     setButtonLoading(signInSubmitBtn, true);
 
-    setTimeout(() => {
-      setButtonLoading(signInSubmitBtn, false);
-      const nameGuess = emailVal.split('@')[0];
-      const displayName = nameGuess.charAt(0).toUpperCase() + nameGuess.slice(1);
-      
-      loginUser({
-        name: displayName,
-        email: emailVal
-      });
+    try {
+      const userCredential = await auth.signInWithEmailAndPassword(emailVal, passVal);
+      const user = userCredential.user;
 
-      showToast('Welcome back!', `Signed in as ${emailVal}`, 'success');
-    }, 850);
+      showToast('Authenticated!', `Welcome back! Redirecting to dashboard...`, 'success');
+
+      // Seamless redirect to dashboard
+      setTimeout(() => {
+        window.location.replace('dashboard.html');
+      }, 500);
+
+    } catch (error) {
+      setButtonLoading(signInSubmitBtn, false);
+      const friendlyMsg = parseFirebaseError(error.code, error.message);
+      showError(signInPassword, signInPasswordError, friendlyMsg);
+      showToast('Login Failed', friendlyMsg, 'error');
+      triggerShake(authCard);
+    }
   });
 
   // =========================================================================
-  // Sign Up Form Submission
+  // Live Firebase Sign Up & Realtime Database Record
   // =========================================================================
   signUpForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -345,8 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!passVal) {
       showError(signUpPassword, signUpPasswordError, 'Password is required');
       valid = false;
-    } else if (passVal.length < 8) {
-      showError(signUpPassword, signUpPasswordError, 'Password must be at least 8 characters');
+    } else if (passVal.length < 6) {
+      showError(signUpPassword, signUpPasswordError, 'Password must be at least 6 characters');
       valid = false;
     }
 
@@ -366,77 +385,97 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Simulate async creation
     setButtonLoading(signUpSubmitBtn, true);
 
-    setTimeout(() => {
-      setButtonLoading(signUpSubmitBtn, false);
+    try {
+      // 1. Create account in Firebase Auth
+      const userCredential = await auth.createUserWithEmailAndPassword(emailVal, passVal);
+      const user = userCredential.user;
 
-      loginUser({
-        name: nameVal,
-        email: emailVal
+      // 2. Set user display name
+      await user.updateProfile({
+        displayName: nameVal
       });
 
-      showToast('Account created!', `Welcome to Aura, ${nameVal}!`, 'success');
-    }, 950);
-  });
+      // 3. Save user profile record to Firebase Realtime Database
+      if (database) {
+        try {
+          await database.ref('users/' + user.uid).set({
+            uid: user.uid,
+            name: nameVal,
+            email: emailVal,
+            createdAt: new Date().toISOString(),
+            statusNote: 'Account created with Aura Minimalist Auth'
+          });
+        } catch (dbErr) {
+          console.warn('Realtime Database write note (check security rules if restricted):', dbErr);
+        }
+      }
 
-  // =========================================================================
-  // Social Login Simulation
-  // =========================================================================
-  socialButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const provider = btn.getAttribute('data-provider');
-      showToast('Connecting', `Authorizing with ${provider}...`, 'info');
+      showToast('Account Created!', `Welcome, ${nameVal}! Redirecting to dashboard...`, 'success');
 
-      btn.style.opacity = '0.6';
-      btn.style.pointerEvents = 'none';
-
+      // Redirect to dashboard
       setTimeout(() => {
-        btn.style.opacity = '';
-        btn.style.pointerEvents = '';
+        window.location.replace('dashboard.html');
+      }, 600);
 
-        loginUser({
-          name: `${provider} Explorer`,
-          email: `user@${provider.toLowerCase()}.com`
-        });
+    } catch (error) {
+      setButtonLoading(signUpSubmitBtn, false);
+      const friendlyMsg = parseFirebaseError(error.code, error.message);
+      showError(signUpEmail, signUpEmailError, friendlyMsg);
+      showToast('Registration Error', friendlyMsg, 'error');
+      triggerShake(authCard);
+    }
+  });
 
-        showToast('Success', `Signed in via ${provider}`, 'success');
-      }, 700);
+  // =========================================================================
+  // Google OAuth Login
+  // =========================================================================
+  if (googleLoginBtn) {
+    googleLoginBtn.addEventListener('click', async () => {
+      showToast('Connecting', 'Opening Google sign-in...', 'info');
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
+
+        // Optionally record in Realtime Database
+        if (database) {
+          database.ref('users/' + user.uid).update({
+            uid: user.uid,
+            name: user.displayName || 'Google User',
+            email: user.email,
+            lastLogin: new Date().toISOString()
+          }).catch(() => {});
+        }
+
+        showToast('Signed In', `Welcome, ${user.displayName || user.email}! Redirecting...`, 'success');
+        setTimeout(() => {
+          window.location.replace('dashboard.html');
+        }, 500);
+
+      } catch (error) {
+        const friendlyMsg = parseFirebaseError(error.code, error.message);
+        showToast('Google Sign-In', friendlyMsg, 'error');
+      }
     });
-  });
+  }
+
+  // GitHub & Apple fallbacks
+  if (githubLoginBtn) {
+    githubLoginBtn.addEventListener('click', () => {
+      showToast('Provider Notice', 'To enable GitHub login, configure the GitHub Provider in your Firebase Console.', 'info');
+    });
+  }
+
+  if (appleLoginBtn) {
+    appleLoginBtn.addEventListener('click', () => {
+      showToast('Provider Notice', 'To enable Apple login, configure Apple Provider in your Firebase Console.', 'info');
+    });
+  }
 
   // =========================================================================
-  // Session / Dashboard Logic
-  // =========================================================================
-  const loginUser = (user) => {
-    dashboardUserName.textContent = user.name;
-    dashboardUserEmail.textContent = user.email;
-    dashboardAvatar.textContent = user.name.charAt(0).toUpperCase();
-
-    const now = new Date();
-    sessionTimestamp.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    authCard.classList.add('hidden');
-    dashboardCard.classList.remove('hidden');
-  };
-
-  signOutBtn.addEventListener('click', () => {
-    dashboardCard.classList.add('hidden');
-    authCard.classList.remove('hidden');
-    signInForm.reset();
-    signUpForm.reset();
-    clearErrors();
-
-    // Reset password meter
-    strengthBars.forEach((b) => (b.className = 'strength-bar'));
-    strengthLabel.textContent = 'Enter a password';
-
-    showToast('Signed out', 'You have been securely signed out', 'info');
-  });
-
-  // =========================================================================
-  // Forgot Password Modal
+  // Forgot Password Modal (Firebase Password Reset)
   // =========================================================================
   const openModal = () => {
     forgotPasswordModal.classList.remove('hidden');
@@ -456,9 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
   cancelResetBtn.addEventListener('click', closeModal);
 
   forgotPasswordModal.addEventListener('click', (e) => {
-    if (e.target === forgotPasswordModal) {
-      closeModal();
-    }
+    if (e.target === forgotPasswordModal) closeModal();
   });
 
   document.addEventListener('keydown', (e) => {
@@ -467,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  forgotPasswordForm.addEventListener('submit', (e) => {
+  forgotPasswordForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const emailVal = resetEmail.value.trim();
 
@@ -478,12 +515,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setButtonLoading(submitResetBtn, true);
 
-    setTimeout(() => {
+    try {
+      await auth.sendPasswordResetEmail(emailVal);
       setButtonLoading(submitResetBtn, false);
       closeModal();
-      showToast('Reset link sent', `Check instructions sent to ${emailVal}`, 'success');
+      showToast('Reset Link Sent', `Password reset instructions sent to ${emailVal}`, 'success');
       resetEmail.value = '';
-    }, 750);
+    } catch (error) {
+      setButtonLoading(submitResetBtn, false);
+      const friendlyMsg = parseFirebaseError(error.code, error.message);
+      showError(resetEmail, resetEmailError, friendlyMsg);
+      showToast('Reset Failed', friendlyMsg, 'error');
+    }
   });
 
   // =========================================================================
@@ -548,16 +591,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = toast.querySelector('.toast-close');
     const dismiss = () => {
       toast.classList.add('toast-exit');
-      setTimeout(() => {
-        toast.remove();
-      }, 200);
+      setTimeout(() => toast.remove(), 200);
     };
 
     closeBtn.addEventListener('click', dismiss);
-
     toastContainer.appendChild(toast);
-
-    // Auto-remove after 4.2 seconds
     setTimeout(dismiss, 4200);
   }
 });

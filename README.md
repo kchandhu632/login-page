@@ -1,44 +1,41 @@
-# Aura — Minimalistic Authentication Web Application
+# Aura — Minimalistic Authentication with Firebase
 
-A clean, modern, and accessible login and registration web application designed with a sleek minimalist aesthetic inspired by Linear, Vercel, and Apple design systems.
+A clean, modern, and accessible login and registration web application connected directly to **Firebase Authentication** and **Firebase Realtime Database** (`aura-b6cf4`). Upon successful login, users are automatically redirected to a dedicated **Dashboard** page (`dashboard.html`) equipped with session guards, real-time database synchronization, and sign-out functionality.
 
 ---
 
 ## ✨ Features
 
-- 🌓 **Adaptive Light & Dark Mode**: Seamless toggling with smooth transitions and `localStorage` persistence (plus system preference auto-detection).
-- 🔄 **Sign In & Sign Up Modes**: Instant tab switching with smooth transitions and dynamic headers/footers.
-- 👁️ **Password Visibility Toggles**: Interactive show/hide password buttons with crisp SVG icons.
-- 📊 **Dynamic Password Strength Meter**: Real-time 4-stage visual indicator (Weak, Fair, Good, Strong) based on length, casing, numbers, and special characters.
-- ⚡ **Interactive Form Validation**: Client-side validation with inline error messages, real-time input error clearing, and card shake feedback.
-- 🔑 **Password Reset Modal**: Accessible forgot password modal with backdrop blur, email validation, and keyboard support (`Escape` to close).
-- 🌐 **OAuth / Social Login Mock**: Styled single-click authorization buttons for Google, GitHub, and Apple.
-- 🔔 **Toast Notification System**: Floating, auto-dismissing toast alerts for feedback and status updates.
-- 👤 **Session Dashboard Simulation**: Full authenticated user dashboard with verified session status and sign-out flow.
+- 🔥 **Live Firebase Authentication**:
+  - **Email/Password Sign-In**: Authenticates existing accounts against Firebase Auth with friendly error message mapping.
+  - **Email/Password Sign-Up**: Creates new Firebase Auth accounts, sets `displayName`, and saves user profiles to Firebase Realtime Database at `/users/{uid}`.
+  - **Google OAuth**: One-click Google Sign-in with popup authorization.
+  - **Password Reset**: Directly triggers Firebase password recovery emails.
+- 🚀 **Two-Page Redirect Architecture**:
+  - `index.html`: Login & registration portal with instant redirect to `dashboard.html` if already authenticated.
+  - `dashboard.html`: Dedicated protected landing page with an authentication guard (unauthenticated users are automatically bounced back to `index.html`).
+- ⚡ **Realtime Database Synchronization**:
+  - Live two-way sync with `https://aura-b6cf4-default-rtdb.firebaseio.com`.
+  - Displays user profile JSON snapshot and allows editing personal status notes saved in real time.
+- 🌓 **Adaptive Light & Dark Mode**:
+  - Shared design tokens and smooth transitions across both pages, persisted in `localStorage`.
+- 📊 **Security & Micro-interactions**:
+  - Real-time 4-segment password strength meter, password visibility toggle, field error highlighting, and card shake feedback.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 How to Run
 
-### 1. Open in Browser
-No build steps or dependencies required! You can open `index.html` directly:
-- Double-click on `index.html` in your file explorer, or
-- Right click and choose **Open with > Chrome / Edge / Firefox / Safari**, or
-- Open your browser and navigate to `file:///C:/Users/kchan/.gemini/antigravity/scratch/minimal-login/index.html`.
+### Direct Browser Access (Zero Build Tools Needed)
+The application uses official Firebase Compat CDN libraries, ensuring it runs cleanly whether opened directly from the file system or hosted on a web server:
+- Open [index.html](file:///C:/Users/kchan/.gemini/antigravity/scratch/minimal-login/index.html) in your browser.
 
-### 2. Run with a Local Static Server (Optional)
-If you prefer running a local server:
-
+### Local Server (Optional)
 Using Python:
 ```bash
 python -m http.server 3000
 ```
 Then visit `http://localhost:3000`.
-
-Using Node / npx:
-```bash
-npx serve .
-```
 
 ---
 
@@ -46,48 +43,39 @@ npx serve .
 
 ```
 minimal-login/
-├── index.html     # Semantic HTML5 layout with accessible forms and modals
-├── style.css      # CSS variables, modern dark/light styling, and micro-interactions
-├── app.js         # State handling, form validation, theme switching, and mock auth
-└── README.md      # Documentation and integration guide
+├── index.html          # Authentication portal (Sign In, Sign Up, Forgot Password)
+├── dashboard.html      # Protected user dashboard (landing page after login)
+├── firebase-config.js  # Firebase SDK configuration (aura-b6cf4)
+├── app.js              # Auth logic, validation, and redirect triggers
+├── dashboard.js        # Auth guard, profile loading, and Realtime Database sync
+├── style.css           # Design tokens, Dark/Light modes, responsive styling
+└── README.md           # Documentation
 ```
 
 ---
 
-## 🔌 Connecting to a Real Backend
+## ⚙️ Firebase Console Configuration
 
-To wire this UI into a real authentication backend:
+To get the most out of your Firebase project (`aura-b6cf4`):
 
-### Option A: REST API / Express / Django / FastAPI
-In `app.js`, replace the `setTimeout` inside `signInForm.addEventListener('submit', ...)`:
-```javascript
-const response = await fetch('/api/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ email: emailVal, password: passVal })
-});
-const data = await response.json();
-if (response.ok) {
-  loginUser(data.user);
-} else {
-  showToast('Authentication Failed', data.message || 'Invalid credentials', 'error');
-}
-```
+1. **Enable Sign-in Providers**:
+   - Go to [Firebase Console > Authentication > Sign-in method](https://console.firebase.google.com/project/aura-b6cf4/authentication/providers).
+   - Ensure **Email/Password** is enabled.
+   - If using Google Sign-In, ensure **Google** is enabled.
 
-### Option B: Supabase
-```javascript
-import { createClient } from '@supabase/supabase-js';
-const supabase = createClient('SUPABASE_URL', 'SUPABASE_ANON_KEY');
-
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: emailVal,
-  password: passVal,
-});
-```
-
-### Option C: Firebase Auth
-```javascript
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-const auth = getAuth();
-await signInWithEmailAndPassword(auth, emailVal, passVal);
-```
+2. **Realtime Database Rules**:
+   - Go to [Firebase Console > Realtime Database > Rules](https://console.firebase.google.com/project/aura-b6cf4/database/aura-b6cf4-default-rtdb/rules).
+   - For authenticated users to read and write their own data, use:
+     ```json
+     {
+       "rules": {
+         "users": {
+           "$uid": {
+             ".read": "auth != null && auth.uid == $uid",
+             ".write": "auth != null && auth.uid == $uid"
+           }
+         }
+       }
+     }
+     ```
+   - (For local testing before enabling strict rules, `.read: true, .write: true` can be temporarily used in test mode).
